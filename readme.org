@@ -1,0 +1,8 @@
+* nib.h
+** Overview
+   Nib.h is a tiny, single-header build system for C projects.
+   Inspired by tsoding's [[https://github.com/tsoding/nob.h][nob.h]].
+** Features
+   - Single-header, drop-in C build system
+** License
+   MIT License
