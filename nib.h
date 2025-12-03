@@ -17,6 +17,7 @@ extern "C" {
 #include <errno.h>
 
 #ifdef _WIN32
+// niche OS Windows
 #include <windows.h>
 #else
 #include <unistd.h>
@@ -25,9 +26,10 @@ extern "C" {
 // ------------------------------------------------------------------------------------------------------------------
 // Constants
 #define NIB_INVALID_PROC (-1)
-#define DA_INITIAL_CAP 256
+#define DA_INITIAL_CAP    256
 // ------------------------------------------------------------------------------------------------------------------
 // Colors
+#ifdef ANSI_ENABLE
 #define NIB_C_RESET   "\033[0m"
 #define NIB_C_RED     "\033[31m"
 #define NIB_C_GREEN   "\033[32m"
@@ -43,28 +45,28 @@ extern "C" {
 
 // ------------------------------------------------------------------------------------------------------------------
 // Logging
-
-#ifdef ANSI_ENABLE
-#define nib_Log(stream, color, level, fmt, ...) \
-    fprintf(stream, color "[%s] " NIB_C_RESET fmt"\n", \
-            level, ##__VA_ARGS__)
+#define nib_Log(stream, color, level, fmt, ...)   \
+    fprintf(stream, color "[%s]: " NIB_C_RESET fmt "\n", level, ##__VA_ARGS__)
 
 #define nib_Error(fmt, ...) \
-    nib_Log(stderr, NIB_C_RED, "Error", \
-            "%s:%d (%s()): "fmt, \
+    nib_Log(stderr, NIB_C_RED, "ERROR",           \
+            "%s:%d (%s()) "fmt,                   \
             __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
-#define nib_Info(fmt, ...) \
-    nib_Log(stdout, NIB_C_BLUE, "Info", fmt, ##__VA_ARGS__)
+#define nib_Info(fmt, ...)                        \
+    nib_Log(stdout, NIB_C_BLUE, "INFO", fmt, ##__VA_ARGS__)
+
 #else
-#define nib_Log(stream, level, fmt, ...)  \
-  fprintf(stream, "[%s] " fmt "\n", level, ##__VA_ARGS__)
-#define nib_Error(fmt, ...) \
-  nib_Log(stderr, "Error", "%s:%d (%s())" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
-#define nib_Info(fmt, ...)  \
-  nib_Log(stdout, "Info", fmt, ##__VA_ARGS__)
+
+#define nib_Log(stream, level, fmt, ...)          \
+  fprintf(stream, "[%s]: " fmt "\n", level, ##__VA_ARGS__)
+#define nib_Error(fmt, ...)                       \
+  nib_Log(stderr, "ERROR", "%s:%d (%s()) " fmt,   \
+          __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define nib_Info(fmt, ...)                        \
+  nib_Log(stdout, "INFO", fmt, ##__VA_ARGS__)
 #endif
-#define nib_Assert(x)   assert(x)
+#define nib_Assert  assert
 
 // Foreach loop
 #define nib_foreach(type, it, da)     \
@@ -77,28 +79,37 @@ extern "C" {
 #endif
 
 // typecasting useful C functions
-#define NIB_MALLOC(x)         malloc(x)
-#define NIB_REALLOC(x, size)  realloc(x, size)
-#define NIB_FREE(x)           free(x)
+#define NIB_MALLOC            malloc
+#define NIB_REALLOC           realloc
+#define NIB_CALLOC            calloc
+#define NIB_FREE              free
 // ------------------------------------------------------------------------------------------------------------------
-// Structures
+// Pid
+#ifdef _WIN32
+  typedef HANDLE Pid;
+#else
+  typedef int Pid;
+#endif
+
+// ------------------------------------------------------------------------------------------------------------------
+// CMD
 typedef struct{
   const char **items;
   size_t count;
   size_t capacity;
 } nib_Cmd;
 
+void nib_cmd_append_null(nib_Cmd *cmd, ...);
+Pid nib_cmd_run(nib_Cmd cmd);
+
+// ------------------------------------------------------------------------------------------------------------------
+// StringBuilder
 typedef struct{
   char *items;
   size_t count;
   size_t capacity;
 } nib_StringBuilder;
 
-#ifdef _WIN32
-typedef HANDLE Pid;
-#else
-typedef int Pid;
-#endif
 // ------------------------------------------------------------------------------------------------------------------
 //
 #define nib_da_reserve(da, expected_capacity)                                     \
@@ -154,6 +165,12 @@ void nib_cmd_append_null(nib_Cmd *cmd, ...)
 
 Pid nib_cmd_run(nib_Cmd cmd)
 {
+  if(cmd.count < 1) {
+    nib_Error("Could not run empty command");
+    return NIB_INVALID_PROC;
+  }
+#ifdef _WIN32
+#else
   Pid cpid = fork();
 
   nib_Cmd cmd_null = { 0 };
@@ -176,15 +193,18 @@ Pid nib_cmd_run(nib_Cmd cmd)
   }
   nib_da_free(&cmd_null);
   return cpid;
+#endif
 }
 // ------------------------------------------------------------------------------------------------------------------
 
 
-
-
 // Backword Compatibility
-#define CMD nib_Cmd
-#define NIB_CMD nib_Cmd
+#define CMD             nib_Cmd
+#define NIB_CMD         nib_Cmd
+#define String_Builder  nib_StringBuilder
+#define NIB_CMD_APPEND  nib_cmd_append
+#define NIB_CMD_RUN     nib_cmd_run
+#define CMD_RUN         nib_cmd_run
 // ------------------------------------------------------------------------------------------------------------------
 #ifdef __cplusplus
 }
