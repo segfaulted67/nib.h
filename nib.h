@@ -175,6 +175,7 @@ Pid nib_cmd_run(nib_Cmd cmd)
 #endif // NIB_NO_ECHO
 
 #ifdef _WIN32
+// TODO: Add compatibility with windows
 #else
   Pid cpid = fork();
 
@@ -196,6 +197,10 @@ Pid nib_cmd_run(nib_Cmd cmd)
       exit(1);
     }
   }
+
+  int status;
+  waitpid(cpid, &status, 0);
+
   nib_da_free(&cmd_null);
   return cpid;
 #endif
