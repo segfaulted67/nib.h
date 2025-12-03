@@ -46,11 +46,11 @@ extern "C" {
 // ------------------------------------------------------------------------------------------------------------------
 // Logging
 #define nib_Log(stream, color, level, fmt, ...)   \
-    fprintf(stream, color "[%s]: " NIB_C_RESET fmt "\n", level, ##__VA_ARGS__)
+    fprintf(stream, color "[%s]: " NIB_C_RESET fmt, level, ##__VA_ARGS__)
 
 #define nib_Error(fmt, ...) \
     nib_Log(stderr, NIB_C_RED, "ERROR",           \
-            "%s:%d (%s()) "fmt,                   \
+            "%s:%d (%s()) " fmt "\n",             \
             __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 #define nib_Info(fmt, ...)                        \
@@ -59,13 +59,13 @@ extern "C" {
 #else
 
 #define nib_Log(stream, level, fmt, ...)          \
-  fprintf(stream, "[%s]: " fmt "\n", level, ##__VA_ARGS__)
+  fprintf(stream, "[%s]: " fmt, level, ##__VA_ARGS__)
 #define nib_Error(fmt, ...)                       \
-  nib_Log(stderr, "ERROR", "%s:%d (%s()) " fmt,   \
+  nib_Log(stderr, "ERROR", "%s:%d (%s()) " fmt "\n",   \
           __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define nib_Info(fmt, ...)                        \
   nib_Log(stdout, "INFO", fmt, ##__VA_ARGS__)
-#endif
+#endif // LOGGING
 #define nib_Assert  assert
 
 // Foreach loop
@@ -76,7 +76,7 @@ extern "C" {
 #define NIB_DECLTYPE_CAST(T) (decltype(T))
 #else
 #define NIB_DECLTYPE_CAST(T)
-#endif
+#endif // NIB_DECLTYPE_CAST
 
 // typecasting useful C functions
 #define NIB_MALLOC            malloc
@@ -101,6 +101,7 @@ typedef struct{
 
 void nib_cmd_append_null(nib_Cmd *cmd, ...);
 Pid nib_cmd_run(nib_Cmd cmd);
+void nib_cmd_render(nib_Cmd cmd);
 
 // ------------------------------------------------------------------------------------------------------------------
 // StringBuilder
@@ -112,19 +113,19 @@ typedef struct{
 
 // ------------------------------------------------------------------------------------------------------------------
 //
-#define nib_da_reserve(da, expected_capacity)                                     \
-  do {                                                                            \
-    if(expected_capacity > (da)->capacity)                                        \
-    {                                                                             \
-      if((da)->capacity == 0) {                                                   \
-        (da)->capacity = DA_INITIAL_CAP;                                          \
-      }                                                                           \
-      while(expected_capacity > (da)->capacity) {                                 \
-        (da)->capacity *= 2;                                                      \
-      }                                                                           \
+#define nib_da_reserve(da, expected_capacity)                                       \
+  do {                                                                              \
+    if(expected_capacity > (da)->capacity)                                          \
+    {                                                                               \
+      if((da)->capacity == 0) {                                                     \
+        (da)->capacity = DA_INITIAL_CAP;                                            \
+      }                                                                             \
+      while(expected_capacity > (da)->capacity) {                                   \
+        (da)->capacity *= 2;                                                        \
+      }                                                                             \
       (da)->items = NIB_DECLTYPE_CAST((da)->items)NIB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items));      \
       nib_Assert((da)->items != NULL && "Bro dont have enough RAM in BIG 25 lol");  \
-    }                                                                             \
+    }                                                                               \
   } while (0)
 
 #define nib_da_append(da, item)                                                           \
@@ -133,11 +134,11 @@ typedef struct{
     (da)->items[(da)->count++] = (item);                                                  \
   } while (0)
 
-#define nib_da_append_many(da, new_items, new_items_count)                      \
-  do {                                                                          \
-    nib_da_reserve((da), (da)->count + new_items_count);                        \
+#define nib_da_append_many(da, new_items, new_items_count)                                        \
+  do {                                                                                            \
+    nib_da_reserve((da), (da)->count + new_items_count);                                          \
     memcpy((da)->items + (da)->count, (new_items), (new_items_count)*sizeof(*(da)->items));       \
-    (da)->count += (new_items_count);                                           \
+    (da)->count += (new_items_count);                                                             \
   } while (0)
 
 #define nib_da_free(da)   \
@@ -169,6 +170,10 @@ Pid nib_cmd_run(nib_Cmd cmd)
     nib_Error("Could not run empty command");
     return NIB_INVALID_PROC;
   }
+#ifndef NIB_NO_ECHO
+  nib_cmd_render(cmd);
+#endif // NIB_NO_ECHO
+
 #ifdef _WIN32
 #else
   Pid cpid = fork();
@@ -195,10 +200,23 @@ Pid nib_cmd_run(nib_Cmd cmd)
   return cpid;
 #endif
 }
+
+void nib_cmd_render(nib_Cmd cmd)
+{
+  nib_Info("%s", cmd.items[0]);
+  for(int i = 1; i < cmd.count; i++) {
+    printf(" %s", cmd.items[i]);
+  }
+  printf("\n");
+}
 // ------------------------------------------------------------------------------------------------------------------
 
 
 // Backword Compatibility
+#define ERROR           nib_Error
+#define NIB_ERROR       nib_Error
+#define INFO            nib_Info
+#define NIB_INFO        nib_Info
 #define CMD             nib_Cmd
 #define NIB_CMD         nib_Cmd
 #define String_Builder  nib_StringBuilder
@@ -208,7 +226,7 @@ Pid nib_cmd_run(nib_Cmd cmd)
 // ------------------------------------------------------------------------------------------------------------------
 #ifdef __cplusplus
 }
-#endif
-#endif
+#endif // __cplusplus
+#endif // NIB_IMPLEMENTATION
 
 #endif // NIB_H
