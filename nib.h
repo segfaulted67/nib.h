@@ -61,6 +61,8 @@ extern "C" {
 
 #define nib_Info(fmt, ...)                        \
     nib_Log(stdout, NIB_C_BLUE, "INFO", fmt, ##__VA_ARGS__)
+#define nib_Cmd_Log(fmt, ...)                     \
+    nib_Log(stdout, NIB_C_GREEN, "CMD", fmt, ##__VA_ARGS__)
 
 #else
 
@@ -71,6 +73,8 @@ extern "C" {
           __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define nib_Info(fmt, ...)                        \
   nib_Log(stdout, "INFO", fmt, ##__VA_ARGS__)
+#define nib_Cmd_Log(fmt, ...)                     \
+  nib_Log(stdout, "CMD", fmt, ##__VA_ARGS__)
 #endif // LOGGING
 #define nib_Assert  assert
 
@@ -180,6 +184,17 @@ void nib_cmd_append_null(nib_Cmd *cmd, ...)
 #define nib_cmd_append(cmd, ...)  \
   nib_cmd_append_null(cmd, __VA_ARGS__, NULL)
 
+#ifdef _WIN32
+static void nib_win32_cmd(nib_Cmd cmd, nib_StringBuilder *sb)
+{
+  for(size_t i = 0; i < cmd.count; i++) {
+    const char *arg = cmd.items[i];
+    if(arg == NULL) break;
+    nib_sb_append_cstr(sb, arg);
+    nib_sb_append_cstr(sb, " ");
+  }
+}
+#endif
 
 Pid nib_cmd_run(nib_Cmd cmd)
 {
@@ -192,11 +207,29 @@ Pid nib_cmd_run(nib_Cmd cmd)
 #endif // NIB_NO_ECHO
 
 #ifdef _WIN32
-// TODO: Add windows support
 // - https://learn.microsoft.com/en-us/windows/win32/procthread/creating-processes
 // - https://learn.microsoft.com/en-us/windows/win32/procthread/creating-a-child-process-with-redirected-input-and-output
 
-  return NIB_INVALID_PROC;
+  nib_StringBuilder sb = { 0 };
+  nib_win32_cmd(cmd, &sb);
+
+  STARTUPINFO si;
+  PROCESS_INFORMATION pi;
+
+  ZeroMemory(&si, sizeof(si));
+  si.cb = sizeof(si);
+  ZeroMemory(&pi, sizeof(pi));
+
+  BOOL bSuccess = CreateProcess(NULL, sb.items, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+  nib_sb_free(sb);
+
+  if(!bSuccess) {
+    nib_Error("Could not create child process for %s: %d", cmd.items[0], (int)GetLastError());
+    return NIB_INVALID_PROC;
+  }
+  WaitForSingleObject(pi.hProcess, INFINITE);
+  CloseHandle(pi.hThread);
+  return pi.hProcess;
 #else
   Pid cpid = fork();
 
@@ -229,7 +262,7 @@ Pid nib_cmd_run(nib_Cmd cmd)
 
 void nib_cmd_render(nib_Cmd cmd)
 {
-  nib_Info("%s", cmd.items[0]);
+  nib_Cmd_Log("%s", cmd.items[0]);
   for(size_t i = 1; i < cmd.count; i++) {
     printf(" %s", cmd.items[i]);
   }
