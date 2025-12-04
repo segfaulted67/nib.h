@@ -23,5 +23,11 @@
    1. Drop =nib.h= in your project file and write a file =nib.c= with =#define NIB_IMPLEMENTATION= on top
    2. Use =nib_cmd_append(&cmd, ...)= to write your build recipe
    3. Run the recipe with =nib_cmd_run(cmd)=
+** Advantages
+   - Only depend on your C compiler, no dependency
+   - lightweight
+   - single header file
+** Disadvantages
+   - Need to know some C in order to write your build recipe
 ** License
    MIT License
