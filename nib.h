@@ -163,6 +163,7 @@ const char *nib_sb_peek(nib_StringBuilder sb);
     size_t size = strlen(s);            \
     nib_da_append_many(sb, s, size);    \
   } while (0)
+#define nib_sb_append_null(sb)  nib_da_append_many(sb, "", 1)
 #define nib_sb_free(sb) NIB_FREE(sb.items)
 
 // ------------------------------------------------------------------------------------------------------------------
@@ -191,8 +192,12 @@ static void nib_win32_cmd(nib_Cmd cmd, nib_StringBuilder *sb)
     const char *arg = cmd.items[i];
     if(arg == NULL) break;
     nib_sb_append_cstr(sb, arg);
-    nib_sb_append_cstr(sb, " ");
+
+    if (i+1 < sb->count) {
+      nib_sb_append_cstr(sb, " ");
+    }
   }
+  nib_sb_append_null(sb);
 }
 #endif
 
@@ -212,6 +217,7 @@ Pid nib_cmd_run(nib_Cmd cmd)
 
   nib_StringBuilder sb = { 0 };
   nib_win32_cmd(cmd, &sb);
+  printf("[%s]\ncount: %zu\n", sb.items, sb.count);
 
   STARTUPINFO si;
   PROCESS_INFORMATION pi;
@@ -220,8 +226,7 @@ Pid nib_cmd_run(nib_Cmd cmd)
   si.cb = sizeof(si);
   ZeroMemory(&pi, sizeof(pi));
 
-  BOOL bSuccess = CreateProcess(NULL, sb.items, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
-  nib_sb_free(sb);
+  BOOL bSuccess = CreateProcessA(NULL, (LPSTR)sb.items, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
 
   if(!bSuccess) {
     nib_Error("Could not create child process for %s: %d", cmd.items[0], (int)GetLastError());
@@ -229,7 +234,9 @@ Pid nib_cmd_run(nib_Cmd cmd)
   }
   WaitForSingleObject(pi.hProcess, INFINITE);
   CloseHandle(pi.hThread);
-  return pi.hProcess;
+  CloseHandle(pi.hProcess);
+  nib_sb_free(sb);
+  return NIB_INVALID_PROC;
 #else
   Pid cpid = fork();
 
