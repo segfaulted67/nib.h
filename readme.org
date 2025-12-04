@@ -4,5 +4,24 @@
    Inspired by tsoding's [[https://github.com/tsoding/nob.h][nob.h]].
 ** Features
    - Single-header, drop-in C build system
+   - Easy to integrate into existing projects
+** Example
+   #+begin_src c
+   // Example: Demonstrating how to use nib.h in your project
+   #define NIB_IMPLEMENTATION
+   #include "nib.h"
+
+   int main()
+   {
+      CMD cmd = { 0 };
+      nib_cmd_append(&cmd, "cc", "-o", "main", "main.c");
+      if(!nib_cmd_run(cmd))   return 1;
+      return 0;
+   }
+   #+end_src
+** Usage
+   1. Drop =nib.h= in your project file and write a file =nib.c= with =#define NIB_IMPLEMENTATION= on top
+   2. Use =nib_cmd_append(&cmd, ...)= to write your build recipe
+   3. Run the recipe with =nib_cmd_run(cmd)=
 ** License
    MIT License
