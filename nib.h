@@ -18,6 +18,7 @@ extern "C" {
 
 #ifdef _WIN32
 // niche OS Windows
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
 #include <unistd.h>
@@ -25,7 +26,12 @@ extern "C" {
 #endif
 // ------------------------------------------------------------------------------------------------------------------
 // Constants
+#ifdef _WIN32
+#define NIB_INVALID_PROC NULL
+#else
 #define NIB_INVALID_PROC (-1)
+#endif
+#define NIB_SB_MIN_CAP    32
 #define DA_INITIAL_CAP    256
 // ------------------------------------------------------------------------------------------------------------------
 // Colors
@@ -92,27 +98,6 @@ extern "C" {
 #endif
 
 // ------------------------------------------------------------------------------------------------------------------
-// CMD
-typedef struct{
-  const char **items;
-  size_t count;
-  size_t capacity;
-} nib_Cmd;
-
-void nib_cmd_append_null(nib_Cmd *cmd, ...);
-Pid nib_cmd_run(nib_Cmd cmd);
-void nib_cmd_render(nib_Cmd cmd);
-
-// ------------------------------------------------------------------------------------------------------------------
-// StringBuilder
-typedef struct{
-  char *items;
-  size_t count;
-  size_t capacity;
-} nib_StringBuilder;
-
-// ------------------------------------------------------------------------------------------------------------------
-//
 #define nib_da_reserve(da, expected_capacity)                                       \
   do {                                                                              \
     if(expected_capacity > (da)->capacity)                                          \
@@ -143,6 +128,38 @@ typedef struct{
 
 #define nib_da_free(da)   \
   NIB_FREE((da)->items)
+// ------------------------------------------------------------------------------------------------------------------
+// CMD
+typedef struct{
+  const char **items;
+  size_t count;
+  size_t capacity;
+} nib_Cmd;
+
+void nib_cmd_append_null(nib_Cmd *cmd, ...);
+Pid nib_cmd_run(nib_Cmd cmd);
+void nib_cmd_render(nib_Cmd cmd);
+
+// ------------------------------------------------------------------------------------------------------------------
+// StringBuilder
+typedef struct{
+  char *items;
+  size_t count;
+  size_t capacity;
+} nib_StringBuilder;
+
+size_t nib_sb_get_count(nib_StringBuilder sb);
+size_t nib_sb_get_capacity(nib_StringBuilder sb);
+const char *nib_sb_peek(nib_StringBuilder sb);
+
+#define nib_sb_append_buf(sb, buf, size)  nib_da_append_many(sb, buf, size)
+#define nib_sb_append_cstr(sb, cstr)    \
+  do {                                  \
+    const char *s = (cstr);             \
+    size_t size = strlen(s);            \
+    nib_da_append_many(sb, s, size);    \
+  } while (0)
+#define nib_sb_free(sb) NIB_FREE(sb.items)
 
 // ------------------------------------------------------------------------------------------------------------------
 
@@ -175,7 +192,11 @@ Pid nib_cmd_run(nib_Cmd cmd)
 #endif // NIB_NO_ECHO
 
 #ifdef _WIN32
-// TODO: Add compatibility with windows
+// TODO: Add windows support
+// - https://learn.microsoft.com/en-us/windows/win32/procthread/creating-processes
+// - https://learn.microsoft.com/en-us/windows/win32/procthread/creating-a-child-process-with-redirected-input-and-output
+
+  return NIB_INVALID_PROC;
 #else
   Pid cpid = fork();
 
@@ -209,22 +230,37 @@ Pid nib_cmd_run(nib_Cmd cmd)
 void nib_cmd_render(nib_Cmd cmd)
 {
   nib_Info("%s", cmd.items[0]);
-  for(int i = 1; i < cmd.count; i++) {
+  for(size_t i = 1; i < cmd.count; i++) {
     printf(" %s", cmd.items[i]);
   }
   printf("\n");
 }
 // ------------------------------------------------------------------------------------------------------------------
+size_t nib_sb_get_count(nib_StringBuilder sb)
+{
+  return sb.count;
+}
+size_t nib_sb_get_capacity(nib_StringBuilder sb)
+{
+  return sb.capacity;
+}
+const char *nib_sb_peek(nib_StringBuilder sb)
+{
+  return sb.items;
+}
+// ------------------------------------------------------------------------------------------------------------------
 
 
-// Backword Compatibility
-#define ERROR           nib_Error
+// Backward Compatibility
+#define nib_ERROR       nib_Error
 #define NIB_ERROR       nib_Error
 #define INFO            nib_Info
 #define NIB_INFO        nib_Info
 #define CMD             nib_Cmd
 #define NIB_CMD         nib_Cmd
+#define SB              nib_StringBuilder
 #define String_Builder  nib_StringBuilder
+#define StringBuilder   nib_StringBuilder
 #define NIB_CMD_APPEND  nib_cmd_append
 #define NIB_CMD_RUN     nib_cmd_run
 #define CMD_RUN         nib_cmd_run
