@@ -193,7 +193,7 @@ static void nib_win32_cmd(nib_Cmd cmd, nib_StringBuilder *sb)
     if(arg == NULL) break;
     nib_sb_append_cstr(sb, arg);
 
-    if (i+1 < sb->count) {
+    if (i+1 < cmd.count) {
       nib_sb_append_cstr(sb, " ");
     }
   }
@@ -217,7 +217,6 @@ Pid nib_cmd_run(nib_Cmd cmd)
 
   nib_StringBuilder sb = { 0 };
   nib_win32_cmd(cmd, &sb);
-  printf("[%s]\ncount: %zu\n", sb.items, sb.count);
 
   STARTUPINFO si;
   PROCESS_INFORMATION pi;
