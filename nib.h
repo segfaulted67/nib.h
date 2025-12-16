@@ -51,30 +51,30 @@ extern "C" {
 
 // ------------------------------------------------------------------------------------------------------------------
 // Logging
-#define nib_Log(stream, color, level, fmt, ...)   \
+#define nib_log(stream, color, level, fmt, ...)   \
     fprintf(stream, color "[%s]: " NIB_C_RESET fmt, level, ##__VA_ARGS__)
 
-#define nib_Error(fmt, ...) \
-    nib_Log(stderr, NIB_C_RED, "ERROR",           \
+#define nib_error(fmt, ...) \
+    nib_log(stderr, NIB_C_RED, "ERROR",           \
             "%s:%d (%s()) " fmt "\n",             \
             __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
-#define nib_Info(fmt, ...)                        \
-    nib_Log(stdout, NIB_C_BLUE, "INFO", fmt, ##__VA_ARGS__)
-#define nib_Cmd_Log(fmt, ...)                     \
-    nib_Log(stdout, NIB_C_GREEN, "CMD", fmt, ##__VA_ARGS__)
+#define nib_info(fmt, ...)                        \
+    nib_log(stdout, NIB_C_BLUE, "INFO", fmt, ##__VA_ARGS__)
+#define nib_cmd_log(fmt, ...)                     \
+    nib_log(stdout, NIB_C_GREEN, "CMD", fmt, ##__VA_ARGS__)
 
 #else
 
-#define nib_Log(stream, level, fmt, ...)          \
+#define nib_log(stream, level, fmt, ...)          \
   fprintf(stream, "[%s]: " fmt, level, ##__VA_ARGS__)
-#define nib_Error(fmt, ...)                       \
-  nib_Log(stderr, "ERROR", "%s:%d (%s()) " fmt "\n",   \
+#define nib_error(fmt, ...)                       \
+  nib_log(stderr, "ERROR", "%s:%d (%s()) " fmt "\n",   \
           __FILE__, __LINE__, __func__, ##__VA_ARGS__)
-#define nib_Info(fmt, ...)                        \
-  nib_Log(stdout, "INFO", fmt, ##__VA_ARGS__)
-#define nib_Cmd_Log(fmt, ...)                     \
-  nib_Log(stdout, "CMD", fmt, ##__VA_ARGS__)
+#define nib_info(fmt, ...)                        \
+  nib_log(stdout, "INFO", fmt, ##__VA_ARGS__)
+#define nib_cmd_log(fmt, ...)                     \
+  nib_log(stdout, "CMD", fmt, ##__VA_ARGS__)
 #endif // LOGGING
 #define nib_Assert  assert
 
@@ -138,23 +138,23 @@ typedef struct{
   const char **items;
   size_t count;
   size_t capacity;
-} nib_Cmd;
+} nib_cmd;
 
-void nib_cmd_append_null(nib_Cmd *cmd, ...);
-Pid nib_cmd_run(nib_Cmd cmd);
-void nib_cmd_render(nib_Cmd cmd);
+void nib_cmd_append_null(nib_cmd *cmd, ...);
+Pid nib_cmd_run(nib_cmd cmd);
+void nib_cmd_render(nib_cmd cmd);
 
 // ------------------------------------------------------------------------------------------------------------------
-// StringBuilder
+// String Builder
 typedef struct{
   char *items;
   size_t count;
   size_t capacity;
-} nib_StringBuilder;
+} nib_stringbuilder;
 
-size_t nib_sb_get_count(nib_StringBuilder sb);
-size_t nib_sb_get_capacity(nib_StringBuilder sb);
-const char *nib_sb_peek(nib_StringBuilder sb);
+size_t nib_sb_get_count(nib_stringbuilder sb);
+size_t nib_sb_get_capacity(nib_stringbuilder sb);
+const char *nib_sb_peek(nib_stringbuilder sb);
 
 #define nib_sb_append_buf(sb, buf, size)  nib_da_append_many(sb, buf, size)
 #define nib_sb_append_cstr(sb, cstr)    \
@@ -168,7 +168,7 @@ const char *nib_sb_peek(nib_StringBuilder sb);
 
 // ------------------------------------------------------------------------------------------------------------------
 
-void nib_cmd_append_null(nib_Cmd *cmd, ...)
+void nib_cmd_append_null(nib_cmd *cmd, ...)
 {
   va_list args;
   va_start(args, cmd);
@@ -186,7 +186,7 @@ void nib_cmd_append_null(nib_Cmd *cmd, ...)
   nib_cmd_append_null(cmd, __VA_ARGS__, NULL)
 
 #ifdef _WIN32
-static void nib_win32_cmd(nib_Cmd cmd, nib_StringBuilder *sb)
+static void nib_win32_cmd(nib_cmd cmd, nib_stringbuilder *sb)
 {
   for(size_t i = 0; i < cmd.count; i++) {
     const char *arg = cmd.items[i];
@@ -201,10 +201,10 @@ static void nib_win32_cmd(nib_Cmd cmd, nib_StringBuilder *sb)
 }
 #endif
 
-Pid nib_cmd_run(nib_Cmd cmd)
+Pid nib_cmd_run(nib_cmd cmd)
 {
   if(cmd.count < 1) {
-    nib_Error("Could not run empty command");
+    nib_error("Could not run empty command");
     return NIB_INVALID_PROC;
   }
 #ifndef NIB_NO_ECHO
@@ -215,7 +215,7 @@ Pid nib_cmd_run(nib_Cmd cmd)
 // - https://learn.microsoft.com/en-us/windows/win32/procthread/creating-processes
 // - https://learn.microsoft.com/en-us/windows/win32/procthread/creating-a-child-process-with-redirected-input-and-output
 
-  nib_StringBuilder sb = { 0 };
+  nib_stringbuilder sb = { 0 };
   nib_win32_cmd(cmd, &sb);
 
   STARTUPINFO si;
@@ -228,7 +228,7 @@ Pid nib_cmd_run(nib_Cmd cmd)
   BOOL bSuccess = CreateProcessA(NULL, (LPSTR)sb.items, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
 
   if(!bSuccess) {
-    nib_Error("Could not create child process for %s: %d", cmd.items[0], (int)GetLastError());
+    nib_error("Could not create child process for %s: %d", cmd.items[0], (int)GetLastError());
     return NIB_INVALID_PROC;
   }
   WaitForSingleObject(pi.hProcess, INFINITE);
@@ -239,20 +239,20 @@ Pid nib_cmd_run(nib_Cmd cmd)
 #else
   Pid cpid = fork();
 
-  nib_Cmd cmd_null = { 0 };
+  nib_cmd cmd_null = { 0 };
   nib_da_append_many(&cmd_null, cmd.items, cmd.count);
   nib_cmd_append(&cmd_null, NULL);
 
   if(cpid < 0)
   {
-    nib_Error("Could not fork child process: %s", strerror(errno));
+    nib_error("Could not fork child process: %s", strerror(errno));
     return NIB_INVALID_PROC;
   }
 
   if(cpid == 0)
   {
     if(execvp(cmd_null.items[0], (char * const*)cmd_null.items) < 0) {
-      nib_Error("Could not exec child process for %s: %s", cmd.items[0], strerror(errno));
+      nib_error("Could not exec child process for %s: %s", cmd.items[0], strerror(errno));
       nib_da_free(&cmd_null);
       exit(1);
     }
@@ -266,24 +266,24 @@ Pid nib_cmd_run(nib_Cmd cmd)
 #endif
 }
 
-void nib_cmd_render(nib_Cmd cmd)
+void nib_cmd_render(nib_cmd cmd)
 {
-  nib_Cmd_Log("%s", cmd.items[0]);
+  nib_cmd_log("%s", cmd.items[0]);
   for(size_t i = 1; i < cmd.count; i++) {
     printf(" %s", cmd.items[i]);
   }
   printf("\n");
 }
 // ------------------------------------------------------------------------------------------------------------------
-size_t nib_sb_get_count(nib_StringBuilder sb)
+size_t nib_sb_get_count(nib_stringbuilder sb)
 {
   return sb.count;
 }
-size_t nib_sb_get_capacity(nib_StringBuilder sb)
+size_t nib_sb_get_capacity(nib_stringbuilder sb)
 {
   return sb.capacity;
 }
-const char *nib_sb_peek(nib_StringBuilder sb)
+const char *nib_sb_peek(nib_stringbuilder sb)
 {
   return sb.items;
 }
@@ -291,15 +291,15 @@ const char *nib_sb_peek(nib_StringBuilder sb)
 
 
 // Backward Compatibility
-#define nib_ERROR       nib_Error
-#define NIB_ERROR       nib_Error
-#define INFO            nib_Info
-#define NIB_INFO        nib_Info
-#define CMD             nib_Cmd
-#define NIB_CMD         nib_Cmd
-#define SB              nib_StringBuilder
-#define String_Builder  nib_StringBuilder
-#define StringBuilder   nib_StringBuilder
+#define nib_ERROR       nib_error
+#define NIB_ERROR       nib_error
+#define INFO            nib_info
+#define NIB_INFO        nib_info
+#define CMD             nib_cmd
+#define NIB_CMD         nib_cmd
+#define SB              nib_stringbuilder
+#define String_Builder  nib_stringbuilder
+#define stringbuilder   nib_stringbuilder
 #define NIB_CMD_APPEND  nib_cmd_append
 #define NIB_CMD_RUN     nib_cmd_run
 #define CMD_RUN         nib_cmd_run
